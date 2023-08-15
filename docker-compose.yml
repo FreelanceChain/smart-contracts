@@ -1,0 +1,15 @@
+version: '3.8'
+services:
+  ganache:
+    image: trufflesuite/ganache-cli:v6.12.2
+    command:
+      - -i 1337  # Network ID
+      - -a 10  # Number of accounts to generate at startup
+      - -e 1000  # Amount of ether to assign each test account
+      - -p 8545  # The network port
+      - -l 8000000  # Gas limit
+      - -g 1  # Gas price
+      - -h
+      - 0.0.0.0  # Listening address
+    ports:
+      - 8545:8545
