@@ -37,7 +37,7 @@ deploy-contracts-mainnet:
 	make post-deploy
 .PHONY: post-deploy
 post-deploy:
-	cp ./build/contracts/Platform.json ../app/src/PlatformABI.json
+	cp ./build/Platform.json ../app/src/PlatformABI.json
 	jq '.abi' ../app/src/PlatformABI.json > temp.json && mv temp.json ../app/src/PlatformABI.
 	
 

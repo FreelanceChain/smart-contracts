@@ -21,8 +21,8 @@ module.exports = {
     }
   },
 
-  contracts_build_directory: "./build/contracts/",
-  contracts_directory: './contracts/',
+  contracts_build_directory: "./build/",
+  contracts_directory: './contracts',
   test_directory: "./test/",
   migrations_directory: "./migrations/",
   mocha: {
@@ -43,5 +43,11 @@ module.exports = {
 
   db: {
     enabled: false
-  }
+  },
+
+  plugins: ['truffle-plugin-verify'],
+
+  api_keys: {
+    etherscan: process.env.ETHERSCAN_API_KEY,
+  },
 };

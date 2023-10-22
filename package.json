@@ -1,9 +1,9 @@
 {
-    "dependencies": {
-      "@openzeppelin/test-helpers": "^0.5.16",
-      "@truffle/hdwallet-provider": "^2.1.12",
-      "chai": "^4.3.7",
-      "dotenv": "^16.1.4"
-    }
+  "dependencies": {
+    "@openzeppelin/test-helpers": "^0.5.16",
+    "@truffle/hdwallet-provider": "^2.1.12",
+    "chai": "^4.3.7",
+    "dotenv": "^16.1.4"
   }
+}
   
