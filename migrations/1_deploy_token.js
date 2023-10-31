@@ -1,5 +1,5 @@
-const FctToken = artifacts.require("FctToken");
+const FreelanceChainToken = artifacts.require("FreelanceChainToken");
 
 module.exports = function(deployer) {
-  deployer.deploy(FctToken, "FCT Token", "FCT", 18, 500000);
+  deployer.deploy(FreelanceChainToken, "FreelanceChain Token", "FCT", 18, 500000);
 };

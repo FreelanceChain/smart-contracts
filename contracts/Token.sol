@@ -12,7 +12,7 @@ interface IERC20 {
     event Approval(address indexed owner, address indexed spender, uint256 value);
 }
 
-contract FctToken is IERC20 {
+contract FreelanceChainToken is IERC20 {
     string public name;
     string public symbol;
     uint8 public decimals;

@@ -1,16 +1,36 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.6;
 
-contract Platform {
-    address payable public owner;
+import "../node_modules/@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-    constructor() {
-        owner = payable(msg.sender);
+contract FreelanceChainPlatform {
+    address payable public contractOwner;
+    IERC20 public fctToken;
+    IERC20 public daiToken;
+    IERC20 public usdtToken;
+    IERC20 public usdcToken;
+
+    enum Currency { ETH, FCT, DAI, USDT, USDC }
+
+    mapping(address => uint) public tokenBalances;
+
+    constructor(IERC20 _fctToken, IERC20 _daiToken, IERC20 _usdtToken, IERC20 _usdcToken) {
+        contractOwner = payable(msg.sender);
+
+        fctToken = _fctToken;
+        daiToken = _daiToken;
+        usdtToken = _usdtToken;
+        usdcToken = _usdcToken;
+
+        tokenBalances[address(fctToken)] = fctToken.balanceOf(address(this));
+        tokenBalances[address(daiToken)] = daiToken.balanceOf(address(this));
+        tokenBalances[address(usdtToken)] = usdtToken.balanceOf(address(this));
+        tokenBalances[address(usdcToken)] = usdcToken.balanceOf(address(this));
     }
 
-    uint constant FEE = 0.0005 ether;
-    uint constant MIN_REWARD = 0.001 ether;
-    uint constant MIN_BID = 0.001 ether;
+    uint constant FEE_ETH = 0.005 ether;
+    uint constant FEE_USD = 10 ether;
+    uint constant FEE_FCT = 1 ether;
 
     mapping(uint => Project) public projects;
     mapping(uint => Application[]) public applications;
@@ -31,6 +51,8 @@ contract Platform {
         address payable author;
         address payable participant;
         uint reward;
+        Currency rewardCurrency;
+        bool isEligibleToDiscount;
         string title;
         string description;
         string[] skillsRequired;
@@ -43,22 +65,74 @@ contract Platform {
         uint projectId;
         address payable applicant;
         uint bid;
+        Currency bidCurrency;
         uint availableDate;
+        bool isProjectEligibleToDiscount;
     }
 
     //
     // Payable functions
 
-    function postProject(
-        string memory title,
-        string memory description,
-        string[] memory skillsRequired,
-        uint deadline,
-        uint reward
-    ) public payable {
-        require(msg.value >= FEE, "Fee is not correct");
-        require(reward >= MIN_REWARD, "Reward is less than minimum limit");
+    function PreSaleInvest() public payable {
+        uint start = 1675036800; // Nov 1st 0:00
+        uint end = 1677628799; // Nov 30th 23:59
+
+        require(
+            block.timestamp >= start && block.timestamp <= end,
+            "Pre-sale is not active"
+        );
+
+        uint minPurchase = 500 * 10 ** 18;
+        uint rate = 16000;
+
+        require(
+            msg.value * rate >= minPurchase,
+            "You have to buy at least 500 FCT"
+        );
+
+        uint tokensToBuy = msg.value * rate;
+
+        require(
+            fctToken.balanceOf(address(this)) >= tokensToBuy,
+            "Not enough FCT tokens in contract"
+        );
+
+        require(
+            fctToken.transfer(msg.sender, tokensToBuy),
+            "Token transfer failed"
+        );
+
+        contractOwner.transfer(msg.value);
+    }
+
+    function postProject(string memory title, string memory description, string[] memory skillsRequired, uint deadline, uint reward, Currency currency, Currency rewardCurrency) public payable {
+        if (currency == Currency.FCT) {
+            require(
+                fctToken.transferFrom(msg.sender, address(this), FEE_FCT),
+                "Fee is not correct"
+            );
+        } else if (currency == Currency.DAI) {
+            require(
+                daiToken.transferFrom(msg.sender, address(this), FEE_USD),
+                "Fee is not correct"
+            );
+        } else if (currency == Currency.USDT) {
+            require(
+                usdtToken.transferFrom(msg.sender, address(this), FEE_USD),
+                "Fee is not correct"
+            );
+        } else if (currency == Currency.USDC) {
+            require(
+                usdcToken.transferFrom(msg.sender, address(this), FEE_USD),
+                "Fee is not correct"
+            );
+        } else if (currency == Currency.ETH) {
+            require(msg.value >= FEE_ETH, "Fee is not correct");
+        }
+
         require(deadline > block.timestamp, "Deadline must be in the future");
+
+        bool eligibilityStatus = (currency == Currency.FCT || rewardCurrency == Currency.FCT) ? true : false;
 
         Project storage p = projects[nextProjectId];
         p.id = nextProjectId;
@@ -69,55 +143,92 @@ contract Platform {
         p.skillsRequired = skillsRequired;
         p.deadline = deadline;
         p.reward = reward;
+        p.rewardCurrency = rewardCurrency;
+        p.isEligibleToDiscount = eligibilityStatus;
 
-        projectIds.push(nextProjectId); // Add the new project id to the array
-        totalProjectsCount++; // Increment the total number of projects
+        projectIds.push(nextProjectId);
+        totalProjectsCount++;
 
         emit ProjectPosted(p.id);
 
         nextProjectId++;
     }
 
-    function updateProject(
-        uint id,
-        uint newReward,
-        string memory title,
-        string memory description,
-        string[] memory skillsRequired,
-        uint deadline
-    ) public payable {
-        require(msg.value >= FEE, "Fee is not correct");
+    function updateProject(uint id, uint newReward, string memory title, string memory description, string[] memory skillsRequired, uint deadline, Currency currency, Currency rewardCurrency) public payable {
+        if (currency == Currency.FCT) {
+            require(
+                fctToken.transferFrom(msg.sender, address(this), FEE_FCT),
+                "Fee is not correct"
+            );
+        } else if (currency == Currency.DAI) {
+            require(
+                daiToken.transferFrom(msg.sender, address(this), FEE_USD),
+                "Fee is not correct"
+            );
+        } else if (currency == Currency.USDT) {
+            require(
+                usdtToken.transferFrom(msg.sender, address(this), FEE_USD),
+                "Fee is not correct"
+            );
+        } else if (currency == Currency.USDC) {
+            require(
+                usdcToken.transferFrom(msg.sender, address(this), FEE_USD),
+                "Fee is not correct"
+            );
+        } else if (currency == Currency.ETH) {
+            require(msg.value >= FEE_ETH, "Fee is not correct");
+        }
+
         require(deadline > block.timestamp, "Deadline must be in the future");
 
         Project storage p = projects[id];
+
         require(p.author == msg.sender, "Only author can update the project");
+
         require(
             p.participant == address(0),
-            "Project can't be updated after participant has been assigned"
+            "Project info can't be updated after participant has been assigned"
         );
 
-        // If participant has not been assigned, author can update reward.
-        if (p.participant == address(0)) {
-            p.reward = newReward;
-        }
+        bool eligibilityStatus = (currency == Currency.FCT || rewardCurrency == Currency.FCT) ? true : false;
+
+        p.reward = newReward;
         p.title = title;
         p.description = description;
         p.skillsRequired = skillsRequired;
         p.deadline = deadline;
+        p.rewardCurrency = rewardCurrency;
+        p.isEligibleToDiscount = eligibilityStatus;
 
         emit ProjectUpdated(id);
     }
 
-    function applyForProject(
-        uint id,
-        uint bid,
-        uint availableDate
-    ) public payable {
-        require(msg.value == FEE, "Fee is not correct");
-        require(bid >= MIN_BID, "Bid is less than minimum limit");
+    function applyForProject(uint id, uint bid, uint availableDate, Currency currency, Currency bidCurrency) public payable {
+        if (currency == Currency.FCT) {
+            require(
+                fctToken.transferFrom(msg.sender, address(this), FEE_FCT),
+                "Fee is not correct"
+            );
+        } else if (currency == Currency.DAI) {
+            require(
+                daiToken.transferFrom(msg.sender, address(this), FEE_USD),
+                "Fee is not correct"
+            );
+        } else if (currency == Currency.USDT) {
+            require(
+                usdtToken.transferFrom(msg.sender, address(this), FEE_USD),
+                "Fee is not correct"
+            );
+        } else if (currency == Currency.USDC) {
+            require(
+                usdcToken.transferFrom(msg.sender, address(this), FEE_USD),
+                "Fee is not correct"
+            );
+        } else if (currency == Currency.ETH) {
+            require(msg.value >= FEE_ETH, "Fee is not correct");
+        }
 
         Project storage p = projects[id];
-        // A project author cannot apply to its own project
         require(
             p.author != msg.sender,
             "Author cannot apply to their own project"
@@ -131,22 +242,23 @@ contract Platform {
             "Available date must be in the future"
         );
 
-        // Check if the user has already applied to the project
         require(
             !hasApplied[id][msg.sender],
             "User has already applied to this project"
         );
 
-        // Mark that the user has applied for this project
         hasApplied[id][msg.sender] = true;
 
-        p.candidates.push(payable(msg.sender)); // Add candidate to the project
+        p.candidates.push(payable(msg.sender));
 
-        // Add application
+        bool eligibilityStatus = (currency == Currency.FCT || bidCurrency == Currency.FCT) ? true : false;
+
         Application memory newApplication = Application({
             projectId: id,
             applicant: payable(msg.sender),
             bid: bid,
+            bidCurrency: bidCurrency,
+            isProjectEligibleToDiscount: eligibilityStatus,
             availableDate: availableDate
         });
 
@@ -155,22 +267,45 @@ contract Platform {
         emit ParticipantApplied(id, msg.sender, availableDate);
     }
 
-    function approveApplicant(
-        uint id,
-        address payable candidate
-    ) public payable {
+    function approveApplicant(uint id, address payable candidate) public payable {
         Project storage p = projects[id];
-
-        uint candidateBid = 0;
+        
+        Application memory candidateApplication;
+        bool applicationExists = false;
+        
         for (uint i = 0; i < applications[id].length; i++) {
             if (applications[id][i].applicant == candidate) {
-                candidateBid = applications[id][i].bid;
+                candidateApplication = applications[id][i];
+                applicationExists = true;
                 break;
             }
         }
 
-        require(candidateBid > 0, "Candidate has not applied");
-        require(msg.value == candidateBid, "Reward is not correct");
+        require(applicationExists, "This candidate has not applied");
+
+        if (candidateApplication.bidCurrency == Currency.FCT) {
+            require(
+                fctToken.transferFrom(msg.sender, address(this), candidateApplication.bid),
+                "Reward is not correct"
+            );
+        } else if (candidateApplication.bidCurrency == Currency.DAI) {
+            require(
+                daiToken.transferFrom(msg.sender, address(this), candidateApplication.bid),
+                "Reward is not correct"
+            );
+        } else if (candidateApplication.bidCurrency == Currency.USDT) {
+            require(
+                usdtToken.transferFrom(msg.sender, address(this), candidateApplication.bid),
+                "Reward is not correct"
+            );
+        } else if (candidateApplication.bidCurrency == Currency.USDC) {
+            require(
+                usdcToken.transferFrom(msg.sender, address(this), candidateApplication.bid),
+                "Reward is not correct"
+            );
+        } else if (candidateApplication.bidCurrency == Currency.ETH) {
+            require(msg.value == candidateApplication.bid, "Reward is not correct");
+        }
 
         require(
             p.author == msg.sender,
@@ -181,17 +316,10 @@ contract Platform {
             "A participant has already been approved"
         );
 
-        bool candidateExists = false;
-        for (uint i = 0; i < p.candidates.length; i++) {
-            if (p.candidates[i] == candidate) {
-                candidateExists = true;
-                break;
-            }
-        }
-        require(candidateExists, "This candidate does not exist");
-
         p.participant = candidate;
-        p.reward = candidateBid;
+        p.reward = candidateApplication.bid;
+        p.rewardCurrency = candidateApplication.bidCurrency;
+        p.isEligibleToDiscount = candidateApplication.isProjectEligibleToDiscount;
 
         emit ParticipantApproved(id, candidate);
     }
@@ -205,15 +333,38 @@ contract Platform {
         require(p.author == msg.sender, "Only author can release the reward");
         require(!p.rewardReleased, "Reward has already been released");
 
-        uint platformCut = p.reward / 10;
-        uint participantReward = p.reward - platformCut;
+        uint platformCut;
+        if (p.rewardCurrency == Currency.FCT) {
+            platformCut = p.reward / 2000; // 0.05%
+        } else {
+            platformCut = p.reward / 200; // 0.5%
+        }
 
-        p.participant.transfer(participantReward);
+        uint participantReward = p.reward - platformCut;
+        
+        // Transfer platform cut and participant reward
+        if (p.rewardCurrency == Currency.FCT) {
+            require(fctToken.transfer(contractOwner, platformCut), "Platform cut transfer failed");
+            require(fctToken.transfer(p.participant, participantReward), "Participant reward transfer failed");
+        } else if (p.rewardCurrency == Currency.DAI) {
+            require(daiToken.transfer(contractOwner, platformCut), "Platform cut transfer failed");
+            require(daiToken.transfer(p.participant, participantReward), "Participant reward transfer failed");
+        } else if (p.rewardCurrency == Currency.USDT) {
+            require(usdtToken.transfer(contractOwner, platformCut), "Platform cut transfer failed");
+            require(usdtToken.transfer(p.participant, participantReward), "Participant reward transfer failed");
+        } else if (p.rewardCurrency == Currency.USDC) {
+            require(usdcToken.transfer(contractOwner, platformCut), "Platform cut transfer failed");
+            require(usdcToken.transfer(p.participant, participantReward), "Participant reward transfer failed");
+        } else if (p.rewardCurrency == Currency.ETH) {
+            contractOwner.transfer(platformCut);
+            p.participant.transfer(participantReward);
+        } 
 
         p.rewardReleased = true;
 
         emit RewardReleased(id);
     }
+
 
     //
     // Read functions
@@ -226,74 +377,13 @@ contract Platform {
         return totalProjectsCount;
     }
 
-    function getProjectById(
-        uint id
-    )
-        public
-        view
-        returns (
-            uint,
-            address,
-            address,
-            uint,
-            string[] memory,
-            string memory,
-            string memory,
-            uint,
-            address[] memory
-        )
-    {
+    function getProjectById(uint id) public view returns (uint, address, address, uint, Currency, string[] memory, string memory, string memory, uint, address[] memory) {
         Project memory p = projects[id];
-        return (
-            p.id,
-            address(p.author),
-            address(p.participant),
-            p.reward,
-            p.skillsRequired,
-            p.title,
-            p.description,
-            p.deadline,
-            stringsToAddresses(p.candidates)
-        );
+        return (p.id, address(p.author), address(p.participant), p.reward, p.rewardCurrency, p.skillsRequired, p.title, p.description, p.deadline, stringsToAddresses(p.candidates));
     }
 
-    function getApplicationsForProject(
-        uint id
-    )
-        public
-        view
-        returns (uint[] memory, address[] memory, uint[] memory, uint[] memory)
-    {
-        Application[] memory apps = applications[id];
-
-        uint[] memory ids = new uint[](apps.length); // Renamed variable
-        address[] memory applicants = new address[](apps.length);
-        uint[] memory bids = new uint[](apps.length);
-        uint[] memory availableDates = new uint[](apps.length);
-
-        for (uint i = 0; i < apps.length; i++) {
-            ids[i] = apps[i].projectId; // Updated line
-            applicants[i] = apps[i].applicant;
-            bids[i] = apps[i].bid;
-            availableDates[i] = apps[i].availableDate;
-        }
-
-        return (ids, applicants, bids, availableDates);
-    }
-
-    function getApplicationByProjectIdAndUserAddress(
-        uint projectId,
-        address walletAddress
-    ) public view returns (uint, uint) {
-        Application[] storage apps = applications[projectId];
-
-        for (uint i = 0; i < apps.length; i++) {
-            if (apps[i].applicant == walletAddress) {
-                return (apps[i].bid, apps[i].availableDate);
-            }
-        }
-
-        return (0, 0);
+    function getFctBalance() public view returns (uint) {
+        return tokenBalances[address(fctToken)];
     }
 
     //
@@ -311,9 +401,7 @@ contract Platform {
         return totalLocked;
     }
 
-    function stringsToAddresses(
-        address payable[] memory input
-    ) private pure returns (address[] memory) {
+    function stringsToAddresses(address payable[] memory input) private pure returns (address[] memory) {
         address[] memory output = new address[](input.length);
         for (uint i = 0; i < input.length; i++) {
             output[i] = address(input[i]);
@@ -322,16 +410,18 @@ contract Platform {
     }
 
     //
-    // Owner functions
+    // Contract owner functions
 
     function withdraw() public {
-        require(msg.sender == owner, "Only the owner can withdraw");
+        require(
+            msg.sender == contractOwner,
+            "Only the contractOwner can withdraw"
+        );
 
         uint totalLocked = getTotalLockedRewards();
         uint availableBalance = address(this).balance - totalLocked;
 
         require(availableBalance > 0, "No available balance for withdrawal");
-
-        owner.transfer(availableBalance);
+        contractOwner.transfer(availableBalance);
     }
 }
